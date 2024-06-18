@@ -24,6 +24,8 @@ for i = 1:c
     % Calculating center of cluster
     cluster_centers = [cluster_centers; mean(cluster_vectors, 1)];
 end
+% Sort labels by the third column (center coordinates)
+%all_vectors = sortrows(labels, 3);
 
 % Vizualization
 figure;
@@ -60,6 +62,7 @@ merged_labels = labels(idx, :); %matrix of parameters: cluster num/size/mean/var
 
 %% Function checks probability that point belongs to current cluster and returns probabilities
 function res = pdf_of_cluster(x_val,y_val,z_val,mu_val,sigma_val)
+    sigma_val=sigma_val^2;
     answer_x=(1/sqrt(2*pi*sigma_val)*exp((-(x_val-mu_val(1))^2)/(2*sigma_val)));
     if answer_x < 1e-200 % Set a minimum threshold
         answer_x = 1e-200;
@@ -77,6 +80,7 @@ function res = pdf_of_cluster(x_val,y_val,z_val,mu_val,sigma_val)
 end
 %% Function checks probability that point belongs to current cluster and returns 1 or 0
 function result = estimation_of_cluster(x_val,y_val,z_val,mu_val,sigma_val)
+    sigma_val=sigma_val^2;
     answer_x=(1/sqrt(2*pi*sigma_val)*exp((-(x_val-mu_val)^2)/(2*sigma_val)));
     if answer_x < 1e-200 % Set a minimum threshold
         answer_x = 1e-200;
@@ -203,15 +207,15 @@ zlim auto;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function res = pdf_of_cluster2(x_val,y_val,z_val,mu_val,sigma_val)
-    answer_x=(1/sqrt(2*pi*sigma_val(1))*exp((-(x_val-mu_val(1))^2)/(2*sigma_val(1))));
+    answer_x=(1/sqrt(2*pi*sigma_val(1)^2)*exp((-(x_val-mu_val(1))^2)/(2*sigma_val(1)^2)));
     if answer_x < 1e-200 % Set a minimum threshold
         answer_x = 1e-200;
     end
-    answer_y=(1/sqrt(2*pi*sigma_val(2))*exp((-(y_val-mu_val(2))^2)/(2*sigma_val(2))));
+    answer_y=(1/sqrt(2*pi*sigma_val(2)^2)*exp((-(y_val-mu_val(2))^2)/(2*sigma_val(2)^2)));
     if answer_y < 1e-200 % Set a minimum threshold
         answer_y = 1e-200;
     end
-    answer_z=(1/sqrt(2*pi*sigma_val(3))*exp((-(z_val-mu_val(3))^2)/(2*sigma_val(3))));
+    answer_z=(1/sqrt(2*pi*sigma_val(3)^2)*exp((-(z_val-mu_val(3))^2)/(2*sigma_val(3)^2)));
     if answer_z < 1e-200 % Set a minimum threshold
         answer_z = 1e-200;
     end
