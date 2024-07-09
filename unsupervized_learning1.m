@@ -118,105 +118,99 @@ zlim auto;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Q 1.2 only amount of clusters known %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%{
-function res = pdf_of_cluster2(x_val,y_val,z_val,mu_val,sigma_val)
-    answer_x=(1/sqrt(2*pi*sigma_val(1)^2)*exp((-(x_val-mu_val(1))^2)/(2*sigma_val(1)^2)));
-    if answer_x < 1e-200 % Set a minimum threshold
-        answer_x = 1e-200;
-    end
-    answer_y=(1/sqrt(2*pi*sigma_val(2)^2)*exp((-(y_val-mu_val(2))^2)/(2*sigma_val(2)^2)));
-    if answer_y < 1e-200 % Set a minimum threshold
-        answer_y = 1e-200;
-    end
-    answer_z=(1/sqrt(2*pi*sigma_val(3)^2)*exp((-(z_val-mu_val(3))^2)/(2*sigma_val(3)^2)));
-    if answer_z < 1e-200 % Set a minimum threshold
-        answer_z = 1e-200;
-    end
-    res(1,:) = [answer_x, answer_y, answer_z];
 
+%% Gaussian PDF for vectors
+function res = pdf_of_cluster2(cur_vector, mu_vector, sigma_vector)
+    cov_vector = diag(sigma_vector .^ 2); % Covariance matrix
+    diff = cur_vector - mu_vector;
+    answer = (1 / ((2 * pi) ^ (length(cur_vector) / 2) * sqrt(det(cov_vector)))) * exp(-0.5 * diff * inv(cov_vector) * diff');
+    if answer < 1e-200 % Set a minimum threshold
+        answer = 1e-200;
+    end
+    res = answer;
 end
 
-mean_vector = repmat(mean(all_vectors, 1),c,1); %init vector of estimated mean values
-deviation_vector=repmat(var(all_vectors,1)/100,c,1); %init vector of estimated standart deviation values
-estim_aprior_prob=repmat((sum(merged_labels(:,2))/c)/sum(merged_labels(:,2)),c,1);%init vector of estimated aprioric probabilities
-new_aprior_prob=zeros(c,1);
+% Initialization
+mean_vector = repmat(mean(all_vectors, 1), c, 1); % Initial estimated mean values
+deviation_vector = repmat(std(all_vectors, 1), c, 1); % Initial estimated standard deviation values
+estim_aprior_prob = repmat(1 / c, c, 1); % Initial estimated apriori probabilities
 
+maxIter = 100; % Number of iterations
 tolerance = 0.1;
 
 % Tolerance matrix
-random_offsets = tolerance * deviation_vector .* randn(c, size(all_vectors, 2));
+random_offsets = tolerance * deviation_vector .* randn(c, m);
 mean_vector = mean_vector + random_offsets;
-deviation_vector=deviation_vector + random_offsets;
+deviation_vector = deviation_vector + random_offsets .* mean_vector;
 
-maxIter=200;
 for iterNumber = 1:maxIter
     %% Aprioric probability estimation
+    new_aprior_prob = zeros(c, 1);
     for i = 1:c
-        end_prob=zeros(1,3);
-        for j = 1: size(all_vectors,1)
-            estimProb_i=pdf_of_cluster2(all_vectors(j,1),all_vectors(j,2),all_vectors(j,3),mean_vector(i,:),deviation_vector(i,:));
-            estimProb_i=estimProb_i*estim_aprior_prob(i,1);
-            total_estimProb_i=zeros(1,3);
+        end_prob = zeros(size(all_vectors, 1), 1);
+        for j = 1:size(all_vectors, 1)
+            estimProb_i = pdf_of_cluster2(all_vectors(j, :), mean_vector(i, :), deviation_vector(i, :));
+            estimProb_i = estimProb_i * estim_aprior_prob(i);
+            total_estimProb_i = 0;
             for try_mean = 1:c
-                temp=pdf_of_cluster2(all_vectors(j,1),all_vectors(j,2),all_vectors(j,3),mean_vector(try_mean,:),deviation_vector(try_mean,:));
-                temp=temp*estim_aprior_prob(try_mean,1);
-                total_estimProb_i=total_estimProb_i+temp;
+                temp = pdf_of_cluster2(all_vectors(j, :), mean_vector(try_mean, :), deviation_vector(try_mean, :));
+                temp = temp * estim_aprior_prob(try_mean);
+                total_estimProb_i = total_estimProb_i + temp;
             end
-            end_prob=end_prob+(estimProb_i./total_estimProb_i);
+            end_prob(j) = estimProb_i / total_estimProb_i;
         end
-        new_aprior_prob(i)=mean(end_prob/size(all_vectors,1));
+        new_aprior_prob(i) = mean(end_prob);
     end
     total_prob = sum(new_aprior_prob);
     if total_prob > 1
         new_aprior_prob = new_aprior_prob / total_prob;
     end
-    
-    %% Mean value eatimation
-    new_mean_vector=zeros(c,3);
+
+    %% Mean value estimation
+    new_mean_vector = zeros(c, m);
     for i = 1:c
-        end_prob=0;
-        mone=zeros(1,3);
-        mahane=zeros(1,3);
-        for j = 1: size(all_vectors,1)
-            estimProb_i=pdf_of_cluster2(all_vectors(j,1),all_vectors(j,2),all_vectors(j,3),mean_vector(i,:),deviation_vector(i,:));
-            estimProb_i=estimProb_i*estim_aprior_prob(i,1);
-            total_estimProb_i=zeros(1,3);
+        mone = zeros(1, m);
+        mahane = 0;
+        for j = 1:size(all_vectors, 1)
+            estimProb_i = pdf_of_cluster2(all_vectors(j, :), mean_vector(i, :), deviation_vector(i, :));
+            estimProb_i = estimProb_i * estim_aprior_prob(i);
+            total_estimProb_i = 0;
             for try_mean = 1:c
-                temp=pdf_of_cluster2(all_vectors(j,1),all_vectors(j,2),all_vectors(j,3),mean_vector(try_mean,:),deviation_vector(try_mean,:));
-                temp=temp*estim_aprior_prob(try_mean,1);
-                total_estimProb_i=total_estimProb_i+temp;
+                temp = pdf_of_cluster2(all_vectors(j, :), mean_vector(try_mean, :), deviation_vector(try_mean, :));
+                temp = temp * estim_aprior_prob(try_mean);
+                total_estimProb_i = total_estimProb_i + temp;
             end
-            end_prob=estimProb_i./total_estimProb_i;
-            mone=mone+(end_prob.*all_vectors(j,:));
-            mahane=mahane+end_prob;
+            end_prob = estimProb_i / total_estimProb_i;
+            mone = mone + (end_prob * all_vectors(j, :));
+            mahane = mahane + end_prob;
         end
-        new_mean_vector(i,:)=mone./mahane;
+        new_mean_vector(i, :) = mone / mahane;
     end
-    
-    %% Variance value eatimation
-    new_deviation_vector=zeros(c,3);
+
+    %% Variance value estimation
+    new_deviation_vector = zeros(c, m);
     for i = 1:c
-        end_prob=0;
-        mone=zeros(1,3);
-        mahane=zeros(1,3);
-        for j = 1: size(all_vectors,1)
-            estimProb_i=pdf_of_cluster2(all_vectors(j,1),all_vectors(j,2),all_vectors(j,3),mean_vector(i,:),deviation_vector(i,:));
-            estimProb_i=estimProb_i*estim_aprior_prob(i,1);
-            total_estimProb_i=zeros(1,3);
+        mone = zeros(1, m);
+        mahane = 0;
+        for j = 1:size(all_vectors, 1)
+            estimProb_i = pdf_of_cluster2(all_vectors(j, :), mean_vector(i, :), deviation_vector(i, :));
+            estimProb_i = estimProb_i * estim_aprior_prob(i);
+            total_estimProb_i = 0;
             for try_mean = 1:c
-                temp=pdf_of_cluster2(all_vectors(j,1),all_vectors(j,2),all_vectors(j,3),mean_vector(try_mean,:),deviation_vector(try_mean,:));
-                temp=temp*estim_aprior_prob(try_mean,1);
-                total_estimProb_i=total_estimProb_i+temp;
+                temp = pdf_of_cluster2(all_vectors(j, :), mean_vector(try_mean, :), deviation_vector(try_mean, :));
+                temp = temp * estim_aprior_prob(try_mean);
+                total_estimProb_i = total_estimProb_i + temp;
             end
-            end_prob=estimProb_i./total_estimProb_i;
-            mone=mone+(end_prob.*((all_vectors(j,:)-mean_vector(i,:)).^2));
-            mahane=mahane+end_prob;
+            end_prob = estimProb_i / total_estimProb_i;
+            mone = mone + (end_prob * ((all_vectors(j, :) - mean_vector(i, :)) .^ 2));
+            mahane = mahane + end_prob;
         end
-        new_deviation_vector(i,:)=mone./mahane;
+        new_deviation_vector(i, :) = sqrt(mone / mahane);
     end
-    mean_vector=new_mean_vector;
-    estim_aprior_prob=new_aprior_prob;
-    deviation_vector=new_deviation_vector;
+
+    mean_vector = new_mean_vector;
+    deviation_vector = new_deviation_vector;
+    estim_aprior_prob = new_aprior_prob;
 end
 
 %% Bayesian Decision Theory
@@ -224,7 +218,7 @@ assigned_labels = zeros(size(all_vectors, 1), 1);
 for j = 1:size(all_vectors, 1)
     posterior_probs = zeros(c, 1);
     for i = 1:c
-        posterior_probs(i) = prod(pdf_of_cluster(all_vectors(j, 1), all_vectors(j, 2), all_vectors(j, 3), mean_vector(i, :), merged_labels(i, 4))) * aprior_prob(i, 2);
+        posterior_probs(i) = pdf_of_cluster2(all_vectors(j, :), mean_vector(i, :), deviation_vector(i, :)) * estim_aprior_prob(i);
     end
     [~, assigned_labels(j)] = max(posterior_probs);
 end
@@ -254,10 +248,3 @@ end
 xlim auto;
 ylim auto;
 zlim auto;
-
-%%  Check the accuracy of result
-estimated_merged_labels=round(estim_aprior_prob*size(all_vectors,1));
-estimated_merged_labels=[estimated_merged_labels,mean(mean_vector,2)];
-estimated_merged_labels=[estimated_merged_labels,mean(deviation_vector,2)]
-%%
-%}
